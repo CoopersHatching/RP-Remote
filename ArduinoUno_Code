@@ -1,0 +1,272 @@
+/*-------- PROCS --------*/
+
+#define F_CPU 1000000UL // 1 MHz
+#define DEMI_BIT 889 // µs
+
+#include <util/delay.h>
+
+/*-------- PROCS --------*/
+/*-------- PORTS --------*/
+
+int led = 4;/*INFRAROUGE*/
+
+int lERROR = 13;/*TEMOIN PIN 13*/
+
+int led_OSC7 = 7;/*-------*/
+int led_CAD6 = 6;/*TEMOINS*/
+int led_VIT5 = 5;/*-------*/
+
+int but_OSC12 = 12;/*----------*/
+int but_CAD11 = 11;/*SELECTIONS*/
+int but_VIT10 = 10;/*----------*/
+
+int but_P9 = 9;/*--------*/
+int but_M8 = 8;/*ACTIONS*/
+
+/*---------PORTS---------*/
+/*-------- CALC --------*/
+
+boolean toogle = 1;
+
+/*-------- CALC --------*/
+/*---- fonction init ----*/
+
+void NL0(int led); void NL1(int led);/*NIVEAUX LOGIQUE BIPHASES*/
+
+void START(int led);/*2 BITS DE START: NL1*/
+boolean TOOGLE(int led, boolean T);
+void ADRESS(int led);/*ADRESSE = 0*/
+void COMM(int led, byte comm);/*COMMANDES*/
+
+void COM18(int led);//VITESSE ++
+void COM19(int led);//VITESSE --
+void COM20(int led);//CADENCE ++
+void COM21(int led);//CADENCE --
+void COM28(int led);//OSCILATION ++
+void COM29(int led);//OSCILATION --
+
+byte WAITSELECT(int BO, int BC, int BV, int LO, int LC, int LV);//ATTEND LA SELECTION
+byte SELECT1(int BO, int BC, int BV, int P, int M, int LO, int LC, int LV);//ATTEND L'ACTION
+
+void STA(int led);/*START + TOOGLE + ADRESS*/
+
+/*---- fonction init ----*/
+/*--- main fonctions ---*/
+
+void setup() {
+  pinMode(led, OUTPUT);/*INFRAROUGE*/
+  
+  pinMode(led_OSC7, OUTPUT);/*-------*/
+  pinMode(led_CAD6, OUTPUT);/*TEMOINS*/
+  pinMode(led_VIT5, OUTPUT);/*-------*/
+  
+  pinMode(but_OSC12, INPUT);/*----------*/
+  pinMode(but_CAD11, INPUT);/*SELECTIONS*/
+  pinMode(but_VIT10, INPUT);/*----------*/
+  
+  pinMode(but_P9, INPUT);/*-------*/
+  pinMode(but_M8, INPUT);/*ACTIONS*/
+}
+
+void loop() {
+  SELECT1(but_OSC12, but_CAD11, but_VIT10, but_P9, but_M8, led_OSC7, led_CAD6, led_VIT5);
+}
+
+/*--- main fonctions ---*/
+/*--- macro fonctions ---*/
+
+void NL0(int led){ // Bit 0 biphasé (protocole RC5)
+  digitalWrite(led, HIGH);
+  _delay_us (DEMI_BIT);
+  digitalWrite(led, LOW);
+  _delay_us (DEMI_BIT);  
+}
+
+void NL1(int led){ // Bit 1 biphasé (protocole RC5)
+  digitalWrite(led, LOW);
+  _delay_us (DEMI_BIT); //889 µs
+  digitalWrite(led, HIGH);
+  _delay_us (DEMI_BIT); //889 µs
+}
+
+void STA(int led){// début trame RC5
+  START(led);// 2x NL1
+  toogle = TOOGLE(toogle, led);//NL1 then NL0
+  ADRESS(led);// 5x NL0
+}
+
+boolean TOOGLE(boolean T, int led){
+  if(T == 0){
+    NL0(led);
+    return 1;
+  }
+  else if(T == 1){
+    NL1(led);
+    return 0;
+  }
+}
+
+void START(int led){
+  NL1(led);
+  NL1(led);
+}
+
+void ADRESS(int led){
+  byte i;
+  for(i=0; i<=5; i++)//* 5x NL0
+    NL0(led);
+}
+
+byte WAITSELECT(int BO, int BC, int BV, int LO, int LC, int LV){
+  while((digitalRead(BO) == LOW) && (digitalRead(BC) == LOW) && (digitalRead(BV) == LOW))
+    {/*ATTEND UNE ENTREE*/}
+
+  if(digitalRead(BO) == HIGH){/*TEST BOUTON OSCILATION*/
+    digitalWrite(LO, HIGH);/*TEMOIN*/
+    return 3;
+  }
+  else if(digitalRead(BC) == HIGH){/*TEST BOUTON CADENCE*/
+    digitalWrite(LC, HIGH);/*TEMOIN*/
+    return 2;
+  }
+  else{/*SINON, BOUTON VITESSE*/
+    digitalWrite(LV, HIGH);/*TEMOIN*/
+    return 1;
+  }
+}
+
+byte SELECT1(int BO, int BC, int BV, int P, int M, int LO, int LC, int LV){
+  byte FB = WAITSELECT(BO, BC, BV, LO, LC, LV);// 1=vitesse; 2=cadence; 3=oscilation
+
+  while((digitalRead(P) == LOW) && (digitalRead(M) == LOW) && (digitalRead(BO) == LOW) && (digitalRead(BC) == LOW) && (digitalRead(BV) == LOW))
+    {/*ATTEND UNE ENTREE*/}
+
+  switch(HIGH){
+    case digitalRead(P):
+      switch(FB){
+        case 1:
+          digitalWrite(LV, LOW);
+          return 18;//vit++
+          break;
+        case 2:
+          digitalWrite(LC, LOW);
+          return 20;//cad++
+          break;
+        case 3:
+          digitalWrite(LO, LOW);
+          return 28;//osc++
+          break;
+      }
+      break;
+    case digitalRead(M):
+      switch(FB){
+        case 1:
+         digitalWrite(LV, LOW);
+         return 19;//vit--
+         break;
+       case 2:
+         digitalWrite(LC, LOW);
+          return 21;//cad--
+         break;
+       case 3:
+          digitalWrite(LO, LOW);
+         return 29;//osc--
+         break;
+      }
+      break;
+    case digitalRead(BO):
+    case digitalRead(BC):
+    case digitalRead(BV):
+      digitalWrite(LO, LOW); // Annulation
+      return 0; // Annulation
+      break;
+  }        
+}
+
+void COM18(int led){
+  NL0(led);
+  NL1(led);
+  NL0(led);
+  NL0(led);
+  NL1(led);
+  NL0(led);
+}
+
+void COM19(int led){
+  NL0(led);
+  NL1(led);
+  NL0(led);
+  NL0(led);
+  NL1(led);
+  NL1(led);
+}
+
+void COM20(int led){
+  NL0(led);
+  NL1(led);
+  NL0(led);
+  NL1(led);
+  NL0(led);
+  NL0(led);
+}
+
+void COM21(int led){
+  NL0(led);
+  NL1(led);
+  NL0(led);
+  NL1(led);
+  NL0(led);
+  NL1(led);
+}
+
+void COM28(int led){
+  NL0(led);
+  NL1(led);
+  NL1(led);
+  NL1(led);
+  NL0(led);
+  NL0(led);
+}
+
+void COM29(int led){
+  NL0(led);
+  NL1(led);
+  NL1(led);
+  NL1(led);
+  NL0(led);
+  NL1(led);
+}
+
+void COMM(int led, byte comm){/*CHOISIT LA COMMANDE, ENVOIT LA TRAME*/
+  switch(comm){
+    case 18://TRAME RC5: 18
+      STA(led);
+      COM18(led);
+      break;
+    case 19://TRAME RC5: 19
+      STA(led);
+      COM19(led);
+      break;
+    case 20://TRAME RC5: 20
+      STA(led);
+      COM20(led);
+      break;
+    case 21://TRAME RC5: 21
+      STA(led);
+      COM21(led);
+      break;
+    case 28://TRAME RC5: 28
+      STA(led);
+      COM28(led);
+      break;
+    case 29://TRAME RC5: 29
+      STA(led);
+      COM29(led);
+      break;
+    default:
+      digitalWrite(lERROR, HIGH);
+      break;
+  }
+}
+
+/*--- macro fonctions ---*/
