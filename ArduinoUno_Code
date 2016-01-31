@@ -1,4 +1,3 @@
-
 /*-------- PROCS --------*/
 
 #define F_CPU 1000000UL // 1 MHz
@@ -70,7 +69,8 @@ void setup() {
 }
 
 void loop() {
-  SELECT1(but_OSC12, but_CAD11, but_VIT10, but_P9, but_M8, led_OSC7, led_CAD6, led_VIT5);
+  COMM(led, SELECT1(but_OSC12, but_CAD11, but_VIT10, but_P9, but_M8, led_OSC7, led_CAD6, led_VIT5));
+  digitalWrite(led, LOW);
 }
 
 /*--- main fonctions ---*/
@@ -139,11 +139,12 @@ byte WAITSELECT(int BO, int BC, int BV, int LO, int LC, int LV){
 byte SELECT1(int BO, int BC, int BV, int P, int M, int LO, int LC, int LV){
   byte FB = WAITSELECT(BO, BC, BV, LO, LC, LV);// 1=vitesse; 2=cadence; 3=oscilation
 
+  delay(64);
+  
   while((digitalRead(P) == LOW) && (digitalRead(M) == LOW) && (digitalRead(BO) == LOW) && (digitalRead(BC) == LOW) && (digitalRead(BV) == LOW))
     {/*ATTEND UNE ENTREE*/}
 
-  switch(HIGH){
-    case digitalRead(P):
+  if(digitalRead(P) == HIGH){
       switch(FB){
         case 1:
           digitalWrite(LV, LOW);
@@ -158,29 +159,29 @@ byte SELECT1(int BO, int BC, int BV, int P, int M, int LO, int LC, int LV){
           return 28;//osc++
           break;
       }
-      break;
-    case digitalRead(M):
-      switch(FB){
-        case 1:
-         digitalWrite(LV, LOW);
-         return 19;//vit--
-         break;
-       case 2:
-         digitalWrite(LC, LOW);
-          return 21;//cad--
-         break;
-       case 3:
-          digitalWrite(LO, LOW);
-         return 29;//osc--
-         break;
-      }
-      break;
-    case digitalRead(BO):
-    case digitalRead(BC):
-    case digitalRead(BV):
-      digitalWrite(LO, LOW); // Annulation
-      return 0; // Annulation
-      break;
+  }
+  else if(digitalRead(M) == HIGH){
+    switch(FB){
+      case 1:
+        digitalWrite(LV, LOW);
+        return 19;//vit--
+        break;
+      case 2:
+        digitalWrite(LC, LOW);
+        return 21;//cad--
+        break;
+      case 3:
+        digitalWrite(LO, LOW);
+        return 29;//osc--
+        break;
+     }
+  }
+  else if (digitalRead(BO) == LOW || digitalRead(BC) == LOW || digitalRead(BV) == LOW){
+     digitalWrite(LO, LOW);
+     digitalWrite(LC, LOW); // Annulation
+     digitalWrite(LV, LOW);
+     delay(64);
+     return 0; // Annulation
   }        
 }
 
